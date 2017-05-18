@@ -9,7 +9,6 @@ import (
 	"math"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"strconv"
 	"sync"
@@ -18,9 +17,14 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/blang/semver"
+	dbclientset "github.com/k8sdb/apimachinery/client/clientset"
 	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	"strings"
+	"os"
 )
 
 var Version string = "0.0.1"
@@ -32,10 +36,10 @@ var (
 		"web.listen-address", ":9187",
 		"Address to listen on for web interface and telemetry.",
 	)
-	metricPath = flag.String(
+	/*	metricPath = flag.String(
 		"web.telemetry-path", "/metrics",
 		"Path under which to expose metrics.",
-	)
+	)*/
 	queriesPath = flag.String(
 		"extend.query-path", "",
 		"Path to custom queries to run.",
@@ -59,14 +63,14 @@ const (
 
 // landingPage contains the HTML served at '/'.
 // TODO: Make this nicer and more informative.
-var landingPage = []byte(`<html>
+/*var landingPage = []byte(`<html>
 <head><title>Postgres exporter</title></head>
 <body>
 <h1>Postgres exporter</h1>
 <p><a href='` + *metricPath + `'>Metrics</a></p>
 </body>
 </html>
-`)
+`)*/
 
 type ColumnUsage int
 
@@ -246,10 +250,6 @@ var metricMaps = map[string]map[string]ColumnMapping{
 		"count":           {GAUGE, "number of connections in this state", nil, nil},
 		"max_tx_duration": {GAUGE, "max duration in seconds any active transaction has been running", nil, nil},
 	},
-	"pg_database": {
-		"datname":         {LABEL, "Name of this database", nil, nil},
-		"size":            {COUNTER, "Size of database", nil, nil},
-	},
 }
 
 // Override querys are run in-place of simple namespace look ups, and provide
@@ -339,16 +339,6 @@ var queryOverrides = map[string][]OverrideQuery{
 			`,
 		},
 		// No query is applicable for 9.1 that gives any sensible data.
-	},
-
-	"pg_database": {
-		{
-			semver.MustParseRange(">0.0.0"),
-			`
-		        SELECT pg_database.datname as datname, pg_database_size(pg_database.datname) as size
-		        FROM pg_database
-		`,
-		},
 	},
 }
 
@@ -984,18 +974,55 @@ func main() {
 		dumpMaps()
 		return
 	}
-
-	dsn := os.Getenv("DATA_SOURCE_NAME")
-	if len(dsn) == 0 {
-		log.Fatal("couldn't find environment variable DATA_SOURCE_NAME")
+	factory := cmdutil.NewFactory(nil)
+	kubeClient, err := factory.ClientSet()
+	if err != nil {
+		log.Fatalln(err)
 	}
-
-	exporter := NewExporter(dsn, *queriesPath)
-	prometheus.MustRegister(exporter)
-
-	http.Handle(*metricPath, prometheus.Handler())
+	config, err := factory.ClientConfig()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	dbClient, err := dbclientset.NewExtensionsForConfig(config)
+	if err != nil {
+		log.Errorln(err)
+	}
+	namespace := os.Getenv("NAMESPACE")
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write(landingPage)
+		log.Infoln(">>>>>>>>>>>>>>>>>>>>URL ==>>  ", r.URL.Path)
+		dbName := getDBNameFromURL(r.URL.Path)
+		db, err := dbClient.Postgreses("brazil").Get(dbName)
+		if err != nil || db == nil {
+			log.Errorln(err)
+			return
+		}
+		metricPath := flag.String(
+			"web.telemetry-path", r.URL.Path,
+			"Path under which to expose metrics.",
+		)
+		http.Handle(*metricPath, prometheus.Handler())
+		log.Infoln(">>>>>>>>>>>>>>>>>>>>>>", dbName, "<<<<<<<<<<<<<<<<<<<<<<<<<")
+		password, err := getDBPasswordFromSecret(db.Spec.DatabaseSecret.SecretName, namespace, kubeClient)
+		if err != nil {
+			log.Errorln(err)
+			return
+		}
+		dsn, err := makeDestination(dbName, namespace, password, kubeClient)
+		if err != nil {
+			log.Errorln(err)
+			return
+		}
+		exporter := NewExporter(dsn, *queriesPath)
+		prometheus.MustRegister(exporter)
+		w.Write([]byte(`<html>
+<head><title>Postgres exporter</title></head>
+<body>
+<h1>Postgres exporter</h1>
+<p><a href='` + *metricPath + `'>Metrics</a></p>
+</body>
+</html>
+`))
+		prometheus.Unregister(exporter)
 	})
 
 	log.Infof("Starting Server: %s", *listenAddress)
@@ -1003,4 +1030,30 @@ func main() {
 	if db != nil {
 		defer db.Close()
 	}
+}
+
+func getDBNameFromURL(url string) string {
+	s := strings.Split(url, "/")
+	if len(s) != 2 {
+		return ""
+	}
+	return s[1]
+}
+
+func getDBPasswordFromSecret(secretName string, namespace string, kubeClient internalclientset.Interface) (string, error) {
+	secret, err := kubeClient.Core().Secrets(namespace).Get(secretName)
+	if err != nil {
+		return "", err
+	}
+	password := string(secret.Data[".admin"])
+	password = password[len("POSTGRES_PASSWORD="):]
+	return password, nil
+}
+
+func makeDestination(dbName, namespace, password string, kubeClient internalclientset.Interface) (string, error) {
+	svc, err := kubeClient.Core().Services(namespace).Get(dbName)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("postgres://postgres:%s@%s:5432", svc.Spec.ClusterIP, password), nil
 }
