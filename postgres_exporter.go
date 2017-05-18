@@ -252,6 +252,10 @@ var builtinMetricMaps = map[string]map[string]ColumnMapping{
 		"count":           {GAUGE, "number of connections in cu state", nil, nil},
 		"max_tx_duration": {GAUGE, "max duration in seconds any active transaction has been running", nil, nil},
 	},
+	"pg_database": {
+		"datname":         {LABEL, "Name of this database", nil, nil},
+		"size":            {COUNTER, "Size of database", nil, nil},
+	},
 }
 
 // OverrideQuery 's are run in-place of simple namespace look ups, and provide
@@ -341,6 +345,16 @@ var queryOverrides = map[string][]OverrideQuery{
 			`,
 		},
 		// No query is applicable for 9.1 that gives any sensible data.
+	},
+
+	"pg_database": {
+		{
+			semver.MustParseRange(">0.0.0"),
+			`
+		        SELECT pg_database.datname as datname, pg_database_size(pg_database.datname) as size
+		        FROM pg_database
+		`,
+		},
 	},
 }
 
