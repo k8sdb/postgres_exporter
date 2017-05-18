@@ -1,0 +1,23 @@
+package: github.com/wrouesnel/postgres_exporter
+import:
+- package: github.com/blang/semver
+- package: github.com/k8sdb/apimachinery
+  subpackages:
+  - client/clientset
+- package: github.com/lib/pq
+- package: github.com/prometheus/client_golang
+  subpackages:
+  - prometheus
+- package: github.com/prometheus/common
+  subpackages:
+  - log
+- package: gopkg.in/yaml.v2
+- package: k8s.io/kubernetes
+  subpackages:
+  - pkg/client/clientset_generated/internalclientset
+  - pkg/kubectl/cmd/util
+testImport:
+- package: github.com/prometheus/client_model
+  subpackages:
+  - go
+- package: gopkg.in/check.v1
