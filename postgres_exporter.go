@@ -1028,7 +1028,7 @@ func main() {
 </body>
 </html>
 `))
-		prometheus.Unregister(exporter)
+		//prometheus.Unregister(exporter)
 	})
 			log.Infoln("_____________________________________6")
 
