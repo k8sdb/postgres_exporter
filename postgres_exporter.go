@@ -989,14 +989,12 @@ func main() {
 	}
 	namespace := os.Getenv("NAMESPACE")
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Infoln(">>>>>>>>>>>>>>>>>>>>URL ==>>  ", r.URL.Path)
 		dbName := getDBNameFromURL(r.URL.Path)
 		db, err := dbClient.Postgreses(namespace).Get(dbName)
 		if err != nil || db == nil {
 			log.Errorln(err)
 			return
 		}
-		log.Infoln("_____________________________________1")
 		metricPath := flag.String(
 			"web.telemetry-path", r.URL.Path,
 			"Path under which to expose metrics.",
@@ -1008,17 +1006,13 @@ func main() {
 			log.Errorln(err)
 			return
 		}
-				log.Infoln("_____________________________________2")
 		dsn, err := makeDestination(dbName, namespace, password, kubeClient)
 		if err != nil {
 			log.Errorln(err)
 			return
 		}
-				log.Infoln("_____________________________________3_____", dsn)
 		exporter := NewExporter(dsn, *queriesPath)
-				log.Infoln("_____________________________________4")
 		prometheus.MustRegister(exporter)
-				log.Infoln("_____________________________________5")
 		http.Handle(*metricPath, prometheus.Handler())
 		w.Write([]byte(`<html>
 <head><title>Postgres exporter</title></head>
@@ -1030,8 +1024,6 @@ func main() {
 `))
 		//prometheus.Unregister(exporter)
 	})
-			log.Infoln("_____________________________________6")
-
 	log.Infof("Starting Server: %s", *listenAddress)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 	if db != nil {
@@ -1062,5 +1054,5 @@ func makeDestination(dbName, namespace, password string, kubeClient internalclie
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("postgres://postgres:%s@%s:5432",strings.TrimSpace(password), strings.TrimSpace(svc.Spec.ClusterIP)), nil
+	return fmt.Sprintf("postgres://postgres:%s@%s:5432", strings.TrimSpace(password), strings.TrimSpace(svc.Spec.ClusterIP)), nil
 }
