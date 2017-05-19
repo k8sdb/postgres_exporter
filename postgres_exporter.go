@@ -999,8 +999,6 @@ func main() {
 			"web.telemetry-path", r.URL.Path,
 			"Path under which to expose metrics.",
 		)
-
-		log.Infoln(">>>>>>>>>>>>>>>>>>>>>>", dbName, "<<<<<<<<<<<<<<<<<<<<<<<<<")
 		password, err := getDBPasswordFromSecret(db.Spec.DatabaseSecret.SecretName, namespace, kubeClient)
 		if err != nil {
 			log.Errorln(err)
