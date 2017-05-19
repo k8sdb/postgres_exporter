@@ -250,6 +250,10 @@ var metricMaps = map[string]map[string]ColumnMapping{
 		"count":           {GAUGE, "number of connections in this state", nil, nil},
 		"max_tx_duration": {GAUGE, "max duration in seconds any active transaction has been running", nil, nil},
 	},
+	"pg_database": {
+		"datname": {LABEL, "Name of this database", nil, nil},
+		"size":    {COUNTER, "Size of database", nil, nil},
+	},
 }
 
 // Override querys are run in-place of simple namespace look ups, and provide
@@ -339,6 +343,16 @@ var queryOverrides = map[string][]OverrideQuery{
 			`,
 		},
 		// No query is applicable for 9.1 that gives any sensible data.
+	},
+
+	"pg_database": {
+		{
+			semver.MustParseRange(">0.0.0"),
+			`
+		        SELECT pg_database.datname as datname, pg_database_size(pg_database.datname) as size
+		        FROM pg_database
+		`,
+		},
 	},
 }
 
@@ -989,16 +1003,15 @@ func main() {
 	}
 	namespace := os.Getenv("NAMESPACE")
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("_________________________0  ", r.URL.Path)
 		dbName := getDBNameFromURL(r.URL.Path)
 		db, err := dbClient.Postgreses(namespace).Get(dbName)
 		if err != nil || db == nil {
 			log.Errorln(err)
 			return
 		}
-		metricPath := flag.String(
-			"web.telemetry-path", r.URL.Path,
-			"Path under which to expose metrics.",
-		)
+		fmt.Println("_________________________1  ", dbName)
+
 		password, err := getDBPasswordFromSecret(db.Spec.DatabaseSecret.SecretName, namespace, kubeClient)
 		if err != nil {
 			log.Errorln(err)
@@ -1009,18 +1022,16 @@ func main() {
 			log.Errorln(err)
 			return
 		}
-		exporter := NewExporter(dsn, *queriesPath)
+		fmt.Println("_______________________________2   ", dsn)
+		/*	queriesPath := flag.String(
+		r.URL.Path, "",
+		"Path to custom queries to run.",
+	)*/
+		exporter := NewExporter(dsn,  *queriesPath)
+		prometheus.Unregister(exporter)
 		prometheus.MustRegister(exporter)
-		http.Handle(*metricPath, prometheus.Handler())
-		w.Write([]byte(`<html>
-<head><title>Postgres exporter</title></head>
-<body>
-<h1>Postgres exporter</h1>
-<p><a href='` + *metricPath + `'>Metrics</a></p>
-</body>
-</html>
-`))
-		//prometheus.Unregister(exporter)
+
+		prometheus.UninstrumentedHandler().ServeHTTP(w, r)
 	})
 	log.Infof("Starting Server: %s", *listenAddress)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
