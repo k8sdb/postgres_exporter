@@ -23,8 +23,8 @@ import (
 	"github.com/prometheus/common/log"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
-	"strings"
 	"os"
+	"strings"
 )
 
 var Version string = "0.0.1"
@@ -991,29 +991,35 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Infoln(">>>>>>>>>>>>>>>>>>>>URL ==>>  ", r.URL.Path)
 		dbName := getDBNameFromURL(r.URL.Path)
-		db, err := dbClient.Postgreses("brazil").Get(dbName)
+		db, err := dbClient.Postgreses(namespace).Get(dbName)
 		if err != nil || db == nil {
 			log.Errorln(err)
 			return
 		}
+		log.Infoln("_____________________________________1")
 		metricPath := flag.String(
 			"web.telemetry-path", r.URL.Path,
 			"Path under which to expose metrics.",
 		)
-		http.Handle(*metricPath, prometheus.Handler())
+
 		log.Infoln(">>>>>>>>>>>>>>>>>>>>>>", dbName, "<<<<<<<<<<<<<<<<<<<<<<<<<")
 		password, err := getDBPasswordFromSecret(db.Spec.DatabaseSecret.SecretName, namespace, kubeClient)
 		if err != nil {
 			log.Errorln(err)
 			return
 		}
+				log.Infoln("_____________________________________2")
 		dsn, err := makeDestination(dbName, namespace, password, kubeClient)
 		if err != nil {
 			log.Errorln(err)
 			return
 		}
+				log.Infoln("_____________________________________3_____", dsn)
 		exporter := NewExporter(dsn, *queriesPath)
+				log.Infoln("_____________________________________4")
 		prometheus.MustRegister(exporter)
+				log.Infoln("_____________________________________5")
+		http.Handle(*metricPath, prometheus.Handler())
 		w.Write([]byte(`<html>
 <head><title>Postgres exporter</title></head>
 <body>
@@ -1024,6 +1030,7 @@ func main() {
 `))
 		prometheus.Unregister(exporter)
 	})
+			log.Infoln("_____________________________________6")
 
 	log.Infof("Starting Server: %s", *listenAddress)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
@@ -1055,5 +1062,5 @@ func makeDestination(dbName, namespace, password string, kubeClient internalclie
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("postgres://postgres:%s@%s:5432", svc.Spec.ClusterIP, password), nil
+	return fmt.Sprintf("postgres://postgres:%s@%s:5432",strings.TrimSpace(password), strings.TrimSpace(svc.Spec.ClusterIP)), nil
 }

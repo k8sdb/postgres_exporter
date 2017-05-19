@@ -1,7 +1,7 @@
 
 GO_SRC := $(shell find -type f -name '*.go' ! -path '*/vendor/*')
 
-CONTAINER_NAME ?= wrouesnel/postgres_exporter:latest
+CONTAINER_NAME ?= sauman/postgres_exporter:latest
 VERSION ?= $(shell git describe --dirty)
 
 all: vet test postgres_exporter
