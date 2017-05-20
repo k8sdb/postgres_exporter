@@ -253,8 +253,8 @@ var builtinMetricMaps = map[string]map[string]ColumnMapping{
 		"max_tx_duration": {GAUGE, "max duration in seconds any active transaction has been running", nil, nil},
 	},
 	"pg_database": {
-		"datname":         {LABEL, "Name of this database", nil, nil},
-		"size":            {COUNTER, "Size of database", nil, nil},
+		"datname": {LABEL, "Name of this database", nil, nil},
+		"size":    {COUNTER, "Size of database", nil, nil},
 	},
 }
 
@@ -877,7 +877,7 @@ func queryNamespaceMappings(ch chan<- prometheus.Metric, db *sql.DB, metricMap m
 	for namespace, mapping := range metricMap {
 		log.Debugln("Querying namespace: ", namespace)
 		nonFatalErrors, err := queryNamespaceMapping(ch, db, namespace, mapping, queryOverrides)
-		// Serious error - a namespace disappeard
+		// Serious error - a namespace disappeared
 		if err != nil {
 			namespaceErrors[namespace] = err
 			log.Infoln(err)
