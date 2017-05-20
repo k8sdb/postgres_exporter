@@ -35,9 +35,8 @@ type Alert struct {
 	Annotations LabelSet `json:"annotations"`
 
 	// The known time range for this alert. Both ends are optional.
-	StartsAt     time.Time `json:"startsAt,omitempty"`
-	EndsAt       time.Time `json:"endsAt,omitempty"`
-	GeneratorURL string    `json:"generatorURL"`
+	StartsAt time.Time `json:"startsAt,omitempty"`
+	EndsAt   time.Time `json:"endsAt,omitempty"`
 }
 
 // Name returns the name of the alert. It is equivalent to the "alertname" label.
