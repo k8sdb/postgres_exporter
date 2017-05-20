@@ -3,10 +3,10 @@
 package main
 
 import (
-	. "gopkg.in/check.v1"
 	"testing"
 
 	"github.com/blang/semver"
+	. "gopkg.in/check.v1"
 )
 
 // Hook up gocheck into the "go test" runner.
