@@ -30,7 +30,10 @@ certificates are included, if you need to use SSL you should either bind-mount
 `/etc/ssl/certs/ca-certificates.crt` or derive a new image containing them.
 
 ### Vendoring
-Package vendoring is handled with [`govendor`](https://github.com/kardianos/govendor)
+Package vendoring is handled with [`glide`](https://github.com/Masterminds/glide). To update dependencies, run:
+```
+glide slow
+```
 
 ### Flags
 
