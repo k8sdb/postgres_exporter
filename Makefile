@@ -6,7 +6,7 @@ GO_SRC := $(shell find . -name '*.go' ! -path '*/vendor/*' ! -path 'tools/*' )
 GO_DIRS := $(shell find . -type d -name '*.go' ! -path '*/vendor/*' ! -path 'tools/*' )
 GO_PKGS := $(shell go list ./... | grep -v '/vendor/')
 
-CONTAINER_NAME ?= wrouesnel/postgres_exporter:latest
+CONTAINER_NAME ?= k8sdb/postgres_exporter:latest
 VERSION ?= $(shell git describe --dirty)
 
 CONCURRENT_LINTERS ?= $(shell cat /proc/cpuinfo | grep processor | wc -l)
@@ -59,10 +59,10 @@ cover.out: tools
 # Do a self-contained docker build - we pull the official upstream container
 # and do a self-contained build.
 docker-build:
-	docker run -v $(shell pwd):/go/src/github.com/wrouesnel/postgres_exporter \
+	docker run -v $(shell pwd):/go/src/github.com/k8sdb/postgres_exporter \
 	    -v $(shell pwd):/real_src \
 	    -e SHELL_UID=$(shell id -u) -e SHELL_GID=$(shell id -g) \
-	    -w /go/src/github.com/wrouesnel/postgres_exporter \
+	    -w /go/src/github.com/k8sdb/postgres_exporter \
 		golang:1.8-wheezy \
 		/bin/bash -c "make >&2 && chown $$SHELL_UID:$$SHELL_GID ./postgres_exporter"
 	docker build -t $(CONTAINER_NAME) .
