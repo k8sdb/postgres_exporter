@@ -27,25 +27,6 @@ var Version string = "0.0.1"
 
 var db *sql.DB = nil
 
-var (
-	listenAddress = flag.String(
-		"web.listen-address", ":9187",
-		"Address to listen on for web interface and telemetry.",
-	)
-	metricPath = flag.String(
-		"web.telemetry-path", "/metrics",
-		"Path under which to expose metrics.",
-	)
-	queriesPath = flag.String(
-		"extend.query-path", "",
-		"Path to custom queries to run.",
-	)
-	onlyDumpMaps = flag.Bool(
-		"dumpmaps", false,
-		"Do not run, simply dump the maps.",
-	)
-)
-
 // Metric name parts.
 const (
 	// Namespace for all metrics.
@@ -56,17 +37,6 @@ const (
 	// e.g. version
 	staticLabelName = "static"
 )
-
-// landingPage contains the HTML served at '/'.
-// TODO: Make this nicer and more informative.
-var landingPage = []byte(`<html>
-<head><title>Postgres exporter</title></head>
-<body>
-<h1>Postgres exporter</h1>
-<p><a href='` + *metricPath + `'>Metrics</a></p>
-</body>
-</html>
-`)
 
 type ColumnUsage int
 
@@ -981,6 +951,12 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric) {
 }
 
 func main() {
+	var (
+		listenAddress = flag.String("web.listen-address", ":9187", "Address to listen on for web interface and telemetry.")
+		metricPath    = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
+		queriesPath   = flag.String("extend.query-path", "", "Path to custom queries to run.")
+		onlyDumpMaps  = flag.Bool("dumpmaps", false, "Do not run, simply dump the maps.")
+	)
 	flag.Parse()
 
 	if *onlyDumpMaps {
@@ -998,6 +974,14 @@ func main() {
 
 	http.Handle(*metricPath, prometheus.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		landingPage := []byte(`<html>
+<head><title>Postgres exporter</title></head>
+<body>
+<h1>Postgres exporter</h1>
+<p><a href='` + *metricPath + `'>Metrics</a></p>
+</body>
+</html>
+`)
 		w.Write(landingPage)
 	})
 
