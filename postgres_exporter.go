@@ -1002,7 +1002,7 @@ func main() {
 		log.Errorln(err)
 	}
 	namespace := os.Getenv("NAMESPACE")
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/*", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("_________________________0  ", r.URL.Path)
 		dbName := getDBNameFromURL(r.URL.Path)
 		db, err := dbClient.Postgreses(namespace).Get(dbName)
@@ -1028,10 +1028,16 @@ func main() {
 		"Path to custom queries to run.",
 	)*/
 		exporter := NewExporter(dsn,  *queriesPath)
-		prometheus.Unregister(exporter)
-		prometheus.MustRegister(exporter)
 
-		prometheus.UninstrumentedHandler().ServeHTTP(w, r)
+		fmt.Println("ddddddddddddddd   ", exporter.dsn)
+		fmt.Println("fffffffffffffffff", exporter.error)
+		//prometheus.Unregister(exporter)
+		err := prometheus.Register(exporter)
+
+		//prometheus.UninstrumentedHandler().ServeHTTP(w, r)
+		//http.Handle(r.URL.Path, prometheus.Handler())
+		//time.Sleep(10 *time.Second)
+		//prometheus.Unregister(exporter)
 	})
 	log.Infof("Starting Server: %s", *listenAddress)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
