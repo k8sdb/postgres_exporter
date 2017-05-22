@@ -1,6 +1,6 @@
 // +build !integration
 
-package main
+package exporter
 
 import (
 	dto "github.com/prometheus/client_model/go"

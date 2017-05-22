@@ -1,34 +1,27 @@
-package main
+package exporter
 
 import (
 	"database/sql"
 	"errors"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"math"
-	"net/http"
 	"net/url"
-	"os"
 	"regexp"
-	"runtime"
 	"strconv"
 	"sync"
 	"time"
-
-	"gopkg.in/yaml.v2"
 
 	"github.com/blang/semver"
 	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
+	"gopkg.in/yaml.v2"
 )
 
 // Version is set during build to the git describe version
 // (semantic version)-(commitish) form.
 var Version = "0.0.1"
-
-var sharedDBConn *sql.DB
 
 // Metric name parts.
 const (
@@ -115,8 +108,8 @@ type MetricMap struct {
 	conversion func(interface{}) (float64, bool) // Conversion function to turn PG result into float64
 }
 
-// TODO: revisit cu with the semver system
-func dumpMaps() {
+// TODO: revisit this with the semver system
+func DumpMaps() {
 	for name, cmap := range builtinMetricMaps {
 		query, ok := queryOverrides[name]
 		if !ok {
@@ -652,6 +645,7 @@ func dbToString(t interface{}) (string, bool) {
 // Exporter collects Postgres metrics. It implements prometheus.Collector.
 type Exporter struct {
 	dsn             string
+	db              *sql.DB
 	userQueriesPath string
 	duration, error prometheus.Gauge
 	totalScrapes    prometheus.Counter
@@ -906,8 +900,8 @@ func (e *Exporter) checkMapVersions(ch chan<- prometheus.Metric, db *sql.DB) err
 	return nil
 }
 
-func getDB(conn string) (*sql.DB, error) {
-	if sharedDBConn == nil {
+func (e *Exporter) getDB(conn string) (*sql.DB, error) {
+	if e.db == nil {
 		d, err := sql.Open("postgres", conn)
 		if err != nil {
 			return nil, err
@@ -918,10 +912,10 @@ func getDB(conn string) (*sql.DB, error) {
 		}
 		d.SetMaxOpenConns(1)
 		d.SetMaxIdleConns(1)
-		sharedDBConn = d
+		e.db = d
 	}
 
-	return sharedDBConn, nil
+	return e.db, nil
 }
 
 func (e *Exporter) scrape(ch chan<- prometheus.Metric) {
@@ -932,7 +926,7 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric) {
 	e.error.Set(0)
 	e.totalScrapes.Inc()
 
-	db, err := getDB(e.dsn)
+	db, err := e.getDB(e.dsn)
 	if err != nil {
 		loggableDsn := "could not parse DATA_SOURCE_NAME"
 		if pDsn, pErr := url.Parse(e.dsn); pErr != nil {
@@ -961,55 +955,5 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric) {
 	errMap := queryNamespaceMappings(ch, db, e.metricMap, e.queryOverrides)
 	if len(errMap) > 0 {
 		e.error.Set(1)
-	}
-}
-
-func main() {
-	var (
-		listenAddress = flag.String("web.listen-address", ":9187", "Address to listen on for web interface and telemetry.")
-		metricPath    = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
-		queriesPath   = flag.String("extend.query-path", "", "Path to custom queries to run.")
-		onlyDumpMaps  = flag.Bool("dumpmaps", false, "Do not run, simply dump the maps.")
-	)
-	flag.Parse()
-
-	if *showVersion {
-		fmt.Printf(
-			"postgres_exporter %s (built with %s)\n",
-			Version, runtime.Version(),
-		)
-		return
-	}
-
-	if *onlyDumpMaps {
-		dumpMaps()
-		return
-	}
-
-	dsn := os.Getenv("DATA_SOURCE_NAME")
-	if len(dsn) == 0 {
-		log.Fatal("couldn't find environment variable DATA_SOURCE_NAME")
-	}
-
-	exporter := NewExporter(dsn, *queriesPath)
-	prometheus.MustRegister(exporter)
-
-	http.Handle(*metricPath, prometheus.Handler())
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		landingPage := []byte(`<html>
-<head><title>Postgres exporter</title></head>
-<body>
-<h1>Postgres exporter</h1>
-<p><a href='` + *metricPath + `'>Metrics</a></p>
-</body>
-</html>
-`)
-		w.Write(landingPage)
-	})
-
-	log.Infof("Starting Server: %s", *listenAddress)
-	log.Fatal(http.ListenAndServe(*listenAddress, nil))
-	if sharedDBConn != nil {
-		defer sharedDBConn.Close() // nolint: errcheck
 	}
 }
